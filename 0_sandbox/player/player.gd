@@ -28,7 +28,9 @@ extends CharacterBody3D
 @export_group("Movement")
 @export var movement_acceleration = 2.0
 @export var stop_drag := 0.9
-@export var run_speed = 10.0
+@export var walk_speed := 2.5
+@export var move_speed := 8.0
+@export var sprint_speed := 14.0
 @export var push_force = 5.0
 
 var max_speed := 0.0
@@ -48,8 +50,8 @@ func _ready() -> void:
 	# Capture the mouse at the start of the game
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
-	# Character moves at the run_speed by default
-	set_new_max_speed(run_speed)
+	# Character moves at the move_speed by default
+	set_new_max_speed(move_speed)
 
 
 func _process(_delta: float) -> void:
@@ -79,6 +81,7 @@ func _process(_delta: float) -> void:
 	var new_move_dir := transform.basis * Vector3(input_direction.x, 0.0, input_direction.y)
 
 	set_movement_direction(new_move_dir)
+	determine_player_move_speed()
 
 	# Jump check
 	if Input.is_action_just_pressed("jump"):
@@ -136,6 +139,16 @@ func _input(event: InputEvent) -> void:
 func jump() -> void:
 	if is_on_floor():
 		velocity.y = jump_force
+
+
+# Determine how if the player should be walking or sprint
+func determine_player_move_speed():
+	if Input.is_action_pressed("walk"):
+		set_new_max_speed(walk_speed)
+	elif Input.is_action_pressed("sprint"):
+		set_new_max_speed(sprint_speed)
+	else:
+		set_new_max_speed(move_speed)
 
 
 # Utility function to set the movement direction
