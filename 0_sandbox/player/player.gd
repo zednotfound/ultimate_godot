@@ -1,18 +1,4 @@
-#########################################
-##  Starter Controller by GameDev.tv   ##
-#########################################
-
-# Bare-bones First Person Character Controller for the GameDev.tv Ultimate Godot Program
-# Use this as a starting point for your player at the start of the program
-
-# Installation Instructions:
-# 1. Download the project files and unzip them.
-# 2. Open the project folder in the file explorer.
-# 3. Locate the starter_controller folder.
-# 4. Copy the starter_controller.tscn and starter_controller.gd into your own project.
-
-# License: CC0
-
+class_name Player
 extends CharacterBody3D
 
 # Debug
@@ -36,14 +22,26 @@ extends CharacterBody3D
 var max_speed := 0.0
 var movement_drag := 0.0
 var movement_direction := Vector3.ZERO
+var jump_charge := 0.0
+var is_crouching := false:
+	set(value):
+		is_crouching = value
+		if not is_crouching:
+			player_animation.play_backwards("crouch")
+		else:
+			player_animation.play("crouch")
 
 # Gravity and Jumping
 @export_group("Gravity and Jumping")
 @export var gravity := 18.0
-@export var jump_force := 10.0
+@export_range(0.1, 30.0) var min_jump_force := 5.0
+@export_range(0.2, 50.0) var max_jump_force := 15.0
+@export_range(0.5, 5.0) var jump_charge_time := 2.0
+@export_range(1.0, 30.0) var jump_camera_stretch := 12.0
 
-# Onready Variables
-@onready var camera_3d: Camera3D = $Camera3D
+@onready var camera: Camera3D = $Camera3D
+@onready var camera_starting_fov := camera.fov
+@onready var player_animation: AnimationPlayer = $PlayerAnimation
 
 
 func _ready() -> void:
@@ -54,7 +52,7 @@ func _ready() -> void:
 	set_new_max_speed(move_speed)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	# Capture the mouse if the left mouse button is pressed
 	if (
 		Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
@@ -83,9 +81,33 @@ func _process(_delta: float) -> void:
 	set_movement_direction(new_move_dir)
 	determine_player_move_speed()
 
-	# Jump check
+	# Charge up jump
 	if Input.is_action_just_pressed("jump"):
-		jump()
+		camera.v_offset = -0.05
+	if Input.is_action_pressed("jump"):
+		jump_charge = min(jump_charge_time, jump_charge + delta)
+		camera.fov = camera_starting_fov + (jump_charge / jump_charge_time) * jump_camera_stretch
+	# Release charged jump
+	elif Input.is_action_just_released("jump"):
+		if is_crouching:
+			is_crouching = false
+		var jump_force = (
+			min_jump_force + ((jump_charge / jump_charge_time) * (max_jump_force - min_jump_force))
+		)
+		jump(jump_force)
+		jump_charge = 0
+		camera.v_offset = 0
+		camera.fov = camera_starting_fov
+
+	# Crouch
+	if Input.is_action_just_pressed("crouch"):
+		is_crouching = not is_crouching
+		# if not is_crouching:
+		# 	player_animation.play("crouch")
+		# 	is_crouching = true
+		# else:
+		# 	player_animation.play_backwards("crouch")
+		# 	is_crouching = false
 
 
 func _physics_process(delta: float) -> void:
@@ -123,20 +145,20 @@ func _physics_process(delta: float) -> void:
 
 func _input(event: InputEvent) -> void:
 	# Rotate the camera based on mouse motion
-	if (event is InputEventMouseMotion) && (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED):
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		# Rotate the controller left and right based on horizontal mouse motion
 		rotation_degrees.y -= event.relative.x * mouse_sensitivity.x
 
 		# Rotate the camera up and down based on vertical mouse motion
-		camera_3d.rotation_degrees.x -= event.relative.y * mouse_sensitivity.y
+		camera.rotation_degrees.x -= event.relative.y * mouse_sensitivity.y
 
 		# Clamp the camera rotation between min and max look angles
-		camera_3d.rotation_degrees.x = clampf(
-			camera_3d.rotation_degrees.x, min_vertical_look_angle, max_vertical_look_angle
+		camera.rotation_degrees.x = clampf(
+			camera.rotation_degrees.x, min_vertical_look_angle, max_vertical_look_angle
 		)
 
 
-func jump() -> void:
+func jump(jump_force: float) -> void:
 	if is_on_floor():
 		velocity.y = jump_force
 
