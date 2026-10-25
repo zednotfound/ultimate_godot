@@ -41,10 +41,12 @@ var is_crouching := false:
 			player_animation.play_backwards("crouch")
 		else:
 			player_animation.play("crouch")
+var was_on_floor := false
 
 @onready var camera: Camera3D = $Camera3D
 @onready var camera_starting_fov := camera.fov
 @onready var player_animation: AnimationPlayer = $PlayerAnimation
+@onready var jump_grace_timer: Timer = $JumpGraceTimer
 
 
 func _ready() -> void:
@@ -86,15 +88,15 @@ func _process(delta: float) -> void:
 
 	# Charge up jump
 	if Input.is_action_just_pressed("jump"):
-		if is_on_floor():
+		if can_jump():
 			camera.v_offset = -0.05
 		else:
 			air_jump()
-	if Input.is_action_pressed("jump") and is_on_floor():
+	if Input.is_action_pressed("jump") and can_jump():
 		jump_charge = min(jump_charge_time, jump_charge + delta)
 		camera.fov = camera_starting_fov + (jump_charge / jump_charge_time) * jump_camera_stretch
 	# Release charged jump
-	elif Input.is_action_just_released("jump") and is_on_floor():
+	elif Input.is_action_just_released("jump") and can_jump():
 		if is_crouching:
 			is_crouching = false
 		var jump_force = (
@@ -114,6 +116,14 @@ func _physics_process(delta: float) -> void:
 	# Apply gravity while the controller is not on the floor
 	if not is_on_floor():
 		velocity.y -= gravity * delta
+
+	# Track last frame on the floor
+	if is_on_floor():
+		was_on_floor = true
+		jump_grace_timer.stop()
+	elif was_on_floor:
+		was_on_floor = false
+		jump_grace_timer.start()
 
 	# Using movement_drag by default
 	var drag := movement_drag
@@ -158,14 +168,22 @@ func _input(event: InputEvent) -> void:
 		)
 
 
+# Determine if the player is able to jump
+func can_jump() -> bool:
+	#return is_on_floor()
+	return is_on_floor() or not jump_grace_timer.is_stopped()
+
+
+# Apply the jump force to the player
 func jump(jump_force: float) -> void:
-	if is_on_floor():
+	if can_jump():
 		air_jumps_remaining = air_jumps
 		velocity.y = jump_force
 
 
+# Apply the mid-air jump force to the player
 func air_jump() -> void:
-	if not is_on_floor() and air_jumps_remaining > 0:
+	if not can_jump() and not is_on_floor() and air_jumps_remaining > 0:
 		air_jumps_remaining -= 1
 		velocity.y = air_jump_force
 

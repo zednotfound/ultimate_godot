@@ -148,6 +148,15 @@ _data = {
 &"crouch": SubResource("Animation_4up0j")
 }
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_87oom"]
+bg_color = Color(0.95016366, 0.9474487, 0.93631285, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+shadow_color = Color(0.20148283, 0.20148283, 0.20148283, 0.6)
+shadow_size = 1
+
 [node name="Player" type="CharacterBody3D" unique_id=69406656]
 script = ExtResource("1_87oom")
 min_jump_force = 4.0
@@ -155,7 +164,6 @@ max_jump_force = 10.0
 jump_charge_time = 0.5
 jump_camera_stretch = 3.0
 air_jump_force = 8.0
-air_jumps = 2
 
 [node name="CapsuleMesh" type="CSGMesh3D" parent="." unique_id=52869941]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
@@ -171,3 +179,20 @@ libraries/ = SubResource("AnimationLibrary_afuka")
 [node name="Camera3D" type="Camera3D" parent="." unique_id=780504536]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -0.1)
 current = true
+
+[node name="JumpGraceTimer" type="Timer" parent="." unique_id=149254230]
+wait_time = 0.16
+one_shot = true
+ignore_time_scale = true
+
+[node name="CenterContainer" type="CenterContainer" parent="." unique_id=1115560835]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Crosshair" type="Panel" parent="CenterContainer" unique_id=36774954]
+custom_minimum_size = Vector2(1.5, 1.5)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_87oom")
