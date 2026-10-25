@@ -19,18 +19,6 @@ extends CharacterBody3D
 @export var sprint_speed := 14.0
 @export var push_force = 5.0
 
-var max_speed := 0.0
-var movement_drag := 0.0
-var movement_direction := Vector3.ZERO
-var jump_charge := 0.0
-var is_crouching := false:
-	set(value):
-		is_crouching = value
-		if not is_crouching:
-			player_animation.play_backwards("crouch")
-		else:
-			player_animation.play("crouch")
-
 # Gravity and Jumping
 @export_group("Gravity and Jumping")
 @export var gravity := 18.0
@@ -38,6 +26,21 @@ var is_crouching := false:
 @export_range(0.2, 50.0) var max_jump_force := 15.0
 @export_range(0.5, 5.0) var jump_charge_time := 2.0
 @export_range(1.0, 30.0) var jump_camera_stretch := 12.0
+@export_range(0.2, 30.0) var air_jump_force := 10.0
+@export var air_jumps := 1
+
+var max_speed := 0.0
+var movement_drag := 0.0
+var movement_direction := Vector3.ZERO
+var jump_charge := 0.0
+var air_jumps_remaining := air_jumps
+var is_crouching := false:
+	set(value):
+		is_crouching = value
+		if not is_crouching:
+			player_animation.play_backwards("crouch")
+		else:
+			player_animation.play("crouch")
 
 @onready var camera: Camera3D = $Camera3D
 @onready var camera_starting_fov := camera.fov
@@ -83,12 +86,15 @@ func _process(delta: float) -> void:
 
 	# Charge up jump
 	if Input.is_action_just_pressed("jump"):
-		camera.v_offset = -0.05
-	if Input.is_action_pressed("jump"):
+		if is_on_floor():
+			camera.v_offset = -0.05
+		else:
+			air_jump()
+	if Input.is_action_pressed("jump") and is_on_floor():
 		jump_charge = min(jump_charge_time, jump_charge + delta)
 		camera.fov = camera_starting_fov + (jump_charge / jump_charge_time) * jump_camera_stretch
 	# Release charged jump
-	elif Input.is_action_just_released("jump"):
+	elif Input.is_action_just_released("jump") and is_on_floor():
 		if is_crouching:
 			is_crouching = false
 		var jump_force = (
@@ -102,12 +108,6 @@ func _process(delta: float) -> void:
 	# Crouch
 	if Input.is_action_just_pressed("crouch"):
 		is_crouching = not is_crouching
-		# if not is_crouching:
-		# 	player_animation.play("crouch")
-		# 	is_crouching = true
-		# else:
-		# 	player_animation.play_backwards("crouch")
-		# 	is_crouching = false
 
 
 func _physics_process(delta: float) -> void:
@@ -160,7 +160,14 @@ func _input(event: InputEvent) -> void:
 
 func jump(jump_force: float) -> void:
 	if is_on_floor():
+		air_jumps_remaining = air_jumps
 		velocity.y = jump_force
+
+
+func air_jump() -> void:
+	if not is_on_floor() and air_jumps_remaining > 0:
+		air_jumps_remaining -= 1
+		velocity.y = air_jump_force
 
 
 # Determine how if the player should be walking or sprint
