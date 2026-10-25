@@ -42,6 +42,7 @@ var is_crouching := false:
 		else:
 			player_animation.play("crouch")
 var was_on_floor := false
+var is_flying := false
 
 @onready var camera: Camera3D = $Camera3D
 @onready var camera_starting_fov := camera.fov
@@ -74,6 +75,19 @@ func _process(delta: float) -> void:
 			# Release the mouse if it is currently captured
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
+	if Input.is_action_just_pressed("toggle_flight"):
+		if is_flying:
+			is_flying = false
+		else:
+			is_flying = true
+			var flight_tween = create_tween()
+			flight_tween.set_ease(Tween.EASE_OUT)
+			flight_tween.set_trans(Tween.TRANS_QUAD)
+			flight_tween.tween_property(
+				self, "global_position", global_position + Vector3(0, 3.5, 0), 0.3
+			)
+			flight_tween.play()
+
 	# Get the movement input as a Vector2, X is the left/right input, Y is the forward/backward
 	var input_direction := Input.get_vector(
 		"move_left", "move_right", "move_forward", "move_backward"
@@ -83,38 +97,52 @@ func _process(delta: float) -> void:
 	# so that we move according to the controllers rotation
 	var new_move_dir := transform.basis * Vector3(input_direction.x, 0.0, input_direction.y)
 
-	set_movement_direction(new_move_dir)
+	if is_flying:
+		if Input.is_action_pressed("fly_up"):
+			new_move_dir += Vector3(0, 1, 0)
+
+		if Input.is_action_pressed("fly_down"):
+			new_move_dir += Vector3(0, -1, 0)
+
+	if not is_flying:
+		movement_direction = Vector3(new_move_dir.x, 0.0, new_move_dir.z).normalized()
+	else:
+		movement_direction = new_move_dir.normalized()
 	determine_player_move_speed()
 
-	# Charge up jump
-	if Input.is_action_just_pressed("jump"):
-		if can_jump():
-			camera.v_offset = -0.05
-		else:
-			air_jump()
-	if Input.is_action_pressed("jump") and can_jump():
-		jump_charge = min(jump_charge_time, jump_charge + delta)
-		camera.fov = camera_starting_fov + (jump_charge / jump_charge_time) * jump_camera_stretch
-	# Release charged jump
-	elif Input.is_action_just_released("jump") and can_jump():
-		if is_crouching:
-			is_crouching = false
-		var jump_force = (
-			min_jump_force + ((jump_charge / jump_charge_time) * (max_jump_force - min_jump_force))
-		)
-		jump(jump_force)
-		jump_charge = 0
-		camera.v_offset = 0
-		camera.fov = camera_starting_fov
+	if not is_flying:
+		# Charge up jump
+		if Input.is_action_just_pressed("jump"):
+			if can_jump():
+				camera.v_offset = -0.05
+			else:
+				air_jump()
+		if Input.is_action_pressed("jump") and can_jump():
+			jump_charge = min(jump_charge_time, jump_charge + delta)
+			camera.fov = (
+				camera_starting_fov + (jump_charge / jump_charge_time) * jump_camera_stretch
+			)
+		# Release charged jump
+		elif Input.is_action_just_released("jump") and can_jump():
+			if is_crouching:
+				is_crouching = false
+			var jump_force = (
+				min_jump_force
+				+ ((jump_charge / jump_charge_time) * (max_jump_force - min_jump_force))
+			)
+			jump(jump_force)
+			jump_charge = 0
+			camera.v_offset = 0
+			camera.fov = camera_starting_fov
 
-	# Crouch
-	if Input.is_action_just_pressed("crouch"):
-		is_crouching = not is_crouching
+		# Crouch
+		if Input.is_action_just_pressed("crouch"):
+			is_crouching = not is_crouching
 
 
 func _physics_process(delta: float) -> void:
-	# Apply gravity while the controller is not on the floor
-	if not is_on_floor():
+	# Apply gravity while the controller is not on the floor and not flying
+	if not is_on_floor() and not is_flying:
 		velocity.y -= gravity * delta
 
 	# Track last frame on the floor
@@ -132,19 +160,18 @@ func _physics_process(delta: float) -> void:
 	if movement_direction.is_zero_approx():
 		drag = stop_drag
 
-	# Get the flat velocity -> no vertical velocity
-	var flat_velocity := Vector3(velocity.x, 0.0, velocity.z)
+	if is_flying:
+		move_and_collide(movement_direction * max_speed * delta)
+	else:
+		# Get the flat velocity -> no vertical velocity
+		var flat_velocity := Vector3(velocity.x, 0.0, velocity.z)
 
-	# Calculate the velocity and add it to the current velocity
-	var velocity_to_add: Vector3 = (
-		(movement_acceleration * movement_direction) - (flat_velocity * drag)
-	)
-	velocity += velocity_to_add
-
-	move_and_slide()
-
-	if debug_info:
-		print("[%s] Speed: %s" % [name, flat_velocity.length()])
+		# Calculate the velocity and add it to the current velocity
+		var velocity_to_add: Vector3 = (
+			(movement_acceleration * movement_direction) - (flat_velocity * drag)
+		)
+		velocity += velocity_to_add
+		move_and_slide()
 
 	# For pushing rigid bodies around
 	for i in get_slide_collision_count():
@@ -171,7 +198,7 @@ func _input(event: InputEvent) -> void:
 # Determine if the player is able to jump
 func can_jump() -> bool:
 	#return is_on_floor()
-	return is_on_floor() or not jump_grace_timer.is_stopped()
+	return not is_flying and (is_on_floor() or not jump_grace_timer.is_stopped())
 
 
 # Apply the jump force to the player
@@ -183,7 +210,7 @@ func jump(jump_force: float) -> void:
 
 # Apply the mid-air jump force to the player
 func air_jump() -> void:
-	if not can_jump() and not is_on_floor() and air_jumps_remaining > 0:
+	if not is_flying and not can_jump() and not is_on_floor() and air_jumps_remaining > 0:
 		air_jumps_remaining -= 1
 		velocity.y = air_jump_force
 
@@ -196,13 +223,6 @@ func determine_player_move_speed():
 		set_new_max_speed(sprint_speed)
 	else:
 		set_new_max_speed(move_speed)
-
-
-# Utility function to set the movement direction
-func set_movement_direction(new_move_dir: Vector3) -> void:
-	# Get rid of any vertical direction and normalize the vector
-	# Normalizing it so that diagonal input doesn't move us faster
-	movement_direction = Vector3(new_move_dir.x, 0.0, new_move_dir.z).normalized()
 
 
 # Utility function to set a new maximum speed
