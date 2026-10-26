@@ -159,10 +159,8 @@ shadow_size = 1
 
 [node name="Player" type="CharacterBody3D" unique_id=69406656]
 script = ExtResource("1_87oom")
-move_speed = 6.5
 min_jump_force = 4.0
 max_jump_force = 10.0
-jump_charge_time = 0.5
 jump_camera_stretch = 3.0
 air_jump_force = 8.0
 
