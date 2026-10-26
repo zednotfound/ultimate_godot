@@ -28,9 +28,21 @@ enum PlayerMoveSpeed { SLOW_WALKING, WALKING, SPRINTING }
 @export var push_force = 5.0
 @export var gravity_multiplier := 2.0
 
+@export_group("Energy")
+@export_range(1, 10_000.0) var max_energy := 100.0
+@export_range(1, 10_000) var exhaustion_threshold := 30
+@export var energy_regen_rate := 3
+
+@export_subgroup("Energy Cost")
+@export var energy_sprint_cost := 3.0
+@export var energy_jump_cost := 15.0
+@export var energy_air_jump_cost := 10.0
+@export var energy_fly_cost := 4.5
+
 @export_group("Misc")
 @export var debug_info := false
 
+# Movement
 var player_movement_direction := Vector3.ZERO
 var player_move_speed := PlayerMoveSpeed.WALKING
 var player_move_state := PlayerMoveState.WALKING:
@@ -58,6 +70,7 @@ var player_movement_drag: float:
 	get:
 		return movement_acceleration / player_move_speed_scalar
 
+# Jumping
 var jump_charge := 0.0
 var air_jumps_remaining := air_jumps
 var can_jump: bool:
@@ -68,10 +81,31 @@ var can_jump: bool:
 		)
 var was_on_floor := false
 
+# Energy and Exhaustion
+var is_exhausted := false
+var player_energy := max_energy:
+	set(new_energy_value):
+		if new_energy_value >= exhaustion_threshold and is_exhausted:
+			is_exhausted = false
+		elif new_energy_value < 0.5:
+			is_exhausted = true
+		player_energy = clamp(new_energy_value, 0, max_energy)
+
+		# Display Energy Meter
+		var energy_percent = player_energy / max_energy
+		energy_meter.size.x = energy_bar.size.x * energy_percent
+		energy_meter.get_theme_stylebox("panel").set(
+			"bg_color", Color.RED.lerp(Color.GREEN, energy_percent)
+		)
+
 @onready var camera: Camera3D = $Camera3D
 @onready var camera_starting_fov := camera.fov
+
 @onready var player_animation: AnimationPlayer = $PlayerAnimation
 @onready var jump_grace_timer: Timer = $JumpGraceTimer
+
+@onready var energy_bar: Panel = $EnergyContainer/EnergyBar
+@onready var energy_meter: Panel = $EnergyContainer/EnergyBar/EnergyMeter
 
 
 func _ready() -> void:
@@ -81,6 +115,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	process_player_quitting_input()
+	process_player_energy_levels(delta)
 	process_player_movement_state_and_speed()
 	process_player_movement_direction_input()
 	process_player_jump_input(delta)
@@ -154,15 +189,30 @@ func process_player_quitting_input() -> void:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
+# Regenerate players player_energy over time
+func process_player_energy_levels(delta: float) -> void:
+	if player_move_state == PlayerMoveState.FLYING:
+		if player_move_speed == PlayerMoveSpeed.SPRINTING:
+			player_energy -= (energy_fly_cost + energy_sprint_cost) * delta
+		else:
+			player_energy -= energy_fly_cost * delta
+	elif player_move_speed == PlayerMoveSpeed.SPRINTING and velocity.length() > 0:
+		player_energy -= energy_sprint_cost * delta
+	else:
+		player_energy += energy_regen_rate * delta
+
+
 # Determine what movement state the player is in based on input
 func process_player_movement_state_and_speed() -> void:
 	# Flying, crouching, or walking
-	if Input.is_action_just_pressed("toggle_flight"):
+	if Input.is_action_just_pressed("toggle_flight") and not is_exhausted:
 		if player_move_state != PlayerMoveState.FLYING:
 			player_move_state = PlayerMoveState.FLYING
 			play_begin_flying_tween()
 		else:
 			player_move_state = PlayerMoveState.WALKING
+	elif player_move_state == PlayerMoveState.FLYING and is_exhausted:
+		player_move_state = PlayerMoveState.WALKING
 
 	if Input.is_action_just_pressed("crouch") and player_move_state != PlayerMoveState.FLYING:
 		if player_move_state != PlayerMoveState.CROUCHING:
@@ -173,7 +223,7 @@ func process_player_movement_state_and_speed() -> void:
 	# Speed
 	if Input.is_action_pressed("walk"):
 		player_move_speed = PlayerMoveSpeed.SLOW_WALKING
-	elif Input.is_action_pressed("sprint"):
+	elif Input.is_action_pressed("sprint") and player_energy > 0 and not is_exhausted:
 		player_move_speed = PlayerMoveSpeed.SPRINTING
 	else:
 		player_move_speed = PlayerMoveSpeed.WALKING
@@ -250,7 +300,8 @@ func physics_push_other_bodies() -> void:
 
 # Apply the jump force to the player
 func jump(jump_force: float) -> void:
-	if can_jump:
+	if can_jump and player_energy >= energy_jump_cost:
+		player_energy -= energy_jump_cost
 		air_jumps_remaining = air_jumps
 		velocity.y = jump_force
 
@@ -262,8 +313,10 @@ func air_jump() -> void:
 		and not can_jump
 		and not is_on_floor()
 		and air_jumps_remaining > 0
+		and player_energy >= energy_air_jump_cost
 	):
 		air_jumps_remaining -= 1
+		player_energy -= energy_air_jump_cost
 		velocity.y = air_jump_force
 
 

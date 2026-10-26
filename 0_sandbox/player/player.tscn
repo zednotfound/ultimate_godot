@@ -157,12 +157,31 @@ corner_radius_bottom_left = 2
 shadow_color = Color(0.20148283, 0.20148283, 0.20148283, 0.6)
 shadow_size = 1
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_g4v7s"]
+bg_color = Color(0.3272699, 0.32726994, 0.32726982, 1)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.24561432, 0.24561426, 0.24561408, 1)
+expand_margin_left = 4.0
+expand_margin_top = 4.0
+expand_margin_right = 4.0
+expand_margin_bottom = 4.0
+
+[sub_resource type="Theme" id="Theme_87oom"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_4up0j"]
+bg_color = Color(0, 1, 0, 1)
+border_color = Color(0.24561432, 0.24561426, 0.24561408, 1)
+
 [node name="Player" type="CharacterBody3D" unique_id=69406656]
 script = ExtResource("1_87oom")
+walk_speed = 6.0
 min_jump_force = 4.0
-max_jump_force = 10.0
-jump_camera_stretch = 3.0
-air_jump_force = 8.0
+energy_regen_rate = 5
+energy_sprint_cost = 10.0
+energy_fly_cost = 15.0
 
 [node name="CapsuleMesh" type="CSGMesh3D" parent="." unique_id=52869941]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
@@ -184,14 +203,43 @@ wait_time = 0.2
 one_shot = true
 ignore_time_scale = true
 
-[node name="CenterContainer" type="CenterContainer" parent="." unique_id=1115560835]
+[node name="CrosshairContainer" type="CenterContainer" parent="." unique_id=1115560835]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+size_flags_vertical = 3
 
-[node name="Crosshair" type="Panel" parent="CenterContainer" unique_id=36774954]
+[node name="Crosshair" type="Panel" parent="CrosshairContainer" unique_id=36774954]
 custom_minimum_size = Vector2(1.5, 1.5)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_87oom")
+
+[node name="EnergyContainer" type="MarginContainer" parent="." unique_id=384486629]
+custom_minimum_size = Vector2(10, 10)
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -90.0
+offset_top = -40.0
+offset_right = 90.0
+grow_horizontal = 2
+grow_vertical = 0
+size_flags_vertical = 8
+theme_override_constants/margin_bottom = 25
+
+[node name="EnergyBar" type="Panel" parent="EnergyContainer" unique_id=1714943716]
+custom_minimum_size = Vector2(250, 15)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_g4v7s")
+
+[node name="EnergyMeter" type="Panel" parent="EnergyContainer/EnergyBar" unique_id=1801138469]
+custom_minimum_size = Vector2(0, 15)
+layout_mode = 0
+offset_right = 250.0
+offset_bottom = 15.0
+theme = SubResource("Theme_87oom")
+theme_override_styles/panel = SubResource("StyleBoxFlat_4up0j")
